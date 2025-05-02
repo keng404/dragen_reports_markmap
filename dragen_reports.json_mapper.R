@@ -142,6 +142,16 @@ map_source_data <- function(base_dir,list_of_interest,sources_list,fields_to_upd
         sources_list1 = sources_deep_map(base_dir,my_val,secondary_key,sources_list)
         sources_list = sources_list1
         new_value = deep_metric_map$path
+        ############################
+        if(is.null(new_value)){
+          rlog::log_warn(paste("SKIPPING UPDATE for ",reference_string))
+          next
+        }
+        if(new_value == ""){
+          rlog::log_warn(paste("SKIPPING UPDATE for ",reference_string))
+          next
+        }
+        ################################
         if(new_value %in% names(sources_list)){
           data_source = sources_list[[new_value]]
           ##########################
@@ -175,7 +185,7 @@ second_pass_flagger <- function(list_of_interest){
   flag_bool2 = apply(t(fields),2,function(zz) grepl("workflowSources|sampleSources",zz) )
   flag_bool = flag_bool1 & !flag_bool2
   if(sum(flag_bool)>0){
-    rlog::log_warn(paste("Found fields to take a second look at",paste(fields[flag_bool],collapse=", ")))
+    rlog::log_warn(paste("Found fields to take a second look at",paste(fields[flag_bool],collapse = ", ",sep = ", ")))
     return(fields[flag_bool])
   } else{
     return(NULL)
@@ -209,6 +219,7 @@ output_dir = args$output_dir
   #items_of_interest = x$workflowViews
   items_of_interest = unique(c(x$workflowViews,x$sampleViews))
   dragenReportsList = list()
+  dragenReportsList1 = list()
   keys_of_interest = c("path","source")
   for(i in 1:length(items_of_interest)){
     data_source_key = "path"
@@ -269,7 +280,7 @@ output_dir = args$output_dir
         rlog::log_warn(paste("No files to parse for object\n"))
         rlog::log_warn(paste("names",paste(names(z),collapse=", ",sep=", ")))
         rlog::log_warn(paste(z,collapse="\n",sep="\n"))
-        rlog::log_warn("Using parent object to obtain source data")
+       ####
         default_parse = FALSE
       } else{
         if(config_type != ""){
@@ -398,6 +409,7 @@ output_dir = args$output_dir
         #### only set z1 if it hasn't been initialized at this point
         #rlog::log_info(paste("Initialize z1"))
         if(!"z1" %in% ls()){
+          rlog::log_warn("Using parent object to obtain source data")
           z1 = z
         }
         if(length(z1$sampleSources) > 0){
@@ -441,7 +453,6 @@ output_dir = args$output_dir
         no_data_source_mapping = TRUE
       }
       if(no_data_source_mapping){
-        metricsMetadataList = z1
         if(is.null(full_path2)){
           rlog::log_info(paste("Skipping parsing for full_path1",full_path1))
         } else{
@@ -457,10 +468,6 @@ output_dir = args$output_dir
         ### primary key is section name
         ### secondary key is metric name, will store description
       #### only set z1 if it hasn't been initialized at this point
-      #rlog::log_info(paste("Initialize z1"))
-      if(!"z1" %in% ls()){
-        z1 = z
-      }
         metricsMetadataList = list()
         field_of_interest = NULL
         fields_of_interest = NULL
@@ -470,7 +477,7 @@ output_dir = args$output_dir
           } else{
             rlog::log_info(paste("Cannot parse through full_path2",full_path2,"of","metrics"))
           }
-          rlog::log_info(paste(names(z1)))
+          rlog::log_info("other_fields_of_interest:",paste(names(z1)))
           fields_of_interest = find_other_fields_of_interest(names(unlist(z1)))
         } else{
           field_of_interest = "metrics"
@@ -486,19 +493,41 @@ output_dir = args$output_dir
         parsing_needed = TRUE
         if(!is.null(field_of_interest)){
           if(field_of_interest == "source" | field_of_interest == "path"){
+            rlog::log_info(paste("z1 is our parsed_object_to_update"))
             parsed_object_to_update = z1
             parsing_needed = FALSE
             num_objects_to_parse = 1
           } else{
-            parsed_object_to_update = z1[[field_of_interest]]
+            if(!is.null(full_path2)){
+              rlog::log_info(paste("z1[[field_of_interest]] is our parsed_object_to_update"))
+              parsed_object_to_update = z1[[field_of_interest]]
+            } else{
+              rlog::log_info(paste("z[[field_of_interest]] is our parsed_object_to_update"))
+              parsed_object_to_update = z[[field_of_interest]]
+            }
             num_objects_to_parse = length(parsed_object_to_update)
+            ##### workaround to rescue assignment for parsed_object_to_update when it is NULL
+            if(num_objects_to_parse == 0){
+              if(!is.null(full_path2)){
+                rlog::log_info(paste("z1 is our parsed_object_to_update"))
+                parsed_object_to_update = z1
+              } else{
+                rlog::log_info(paste("z is our parsed_object_to_update"))
+                parsed_object_to_update = z
+              }
+              parsing_needed = FALSE
+              num_objects_to_parse = length(parsed_object_to_update)
+            }
           }
         } else{
+          rlog::log_info(paste("z1 is our parsed_object_to_update"))
           parsed_object_to_update = z1
           parsing_needed = FALSE
           num_objects_to_parse = 1
         }
         ##################
+        rlog::log_info(paste("field_of_interest:",field_of_interest))
+        ########################
         for(metrics_idx in 1:num_objects_to_parse){
           if(is.null(full_path2)){
             rlog::log_info(paste("parsing through full_path1",metrics_idx,"of",num_objects_to_parse, "metrics","in",full_path1))
@@ -529,7 +558,9 @@ output_dir = args$output_dir
           if(is.null(secondary_key)){
             rlog::log_error(paste("Could not find secondary key"))
             rlog::log_error(print(metric_of_interest))
+            ##metricsMetadataList[[]] = metric_of_interest
             next
+            #break
           }
           ### copy and then delete 'path'
           ### some metrics are a combination of multiple metrics
@@ -643,20 +674,39 @@ output_dir = args$output_dir
             }
             metric_of_interest$metrics = metric_collection
           }
-    
-        
-        metricsMetadataList$showNA = z1$showNA
-        metricsMetadataList$name = z1$name
-        metricsMetadataList$displayName = z1$displayName
-        rlog::log_info(paste("Added",metricsMetadataList$displayName,"length of",length(metricsMetadataList)))
+    ###############
+        rlog::log_info(paste("keys_to_choose_from:",names(parsed_object_to_update)))
+        rlog::log_info(paste("section_name:",section_name))
+      #############
+        if(sum(c("name","displayName") %in% names(parsed_object_to_update)) < 1){
+          rlog::log_info(paste("Pulling info from parent object"))
+          metricsMetadataList$showNA = y$showNA
+          metricsMetadataList$name = y$name
+          metricsMetadataList$displayName = y$displayName
+        } else{
+          metricsMetadataList$showNA = parsed_object_to_update$showNA
+          metricsMetadataList$name = parsed_object_to_update$name
+          metricsMetadataList$displayName = parsed_object_to_update$displayName
+        }
+        rlog::log_info(paste("Added [",metricsMetadataList$displayName,"]","length of",length(metricsMetadataList)))
         rlog::log_info(paste("To",view_name,"->",metricsMetadataList$displayName))
         if(!is.null(view_name) & !is.null(metricsMetadataList$displayName)){
-          dragenReportsList[[view_name]][[metricsMetadataList$displayName]] = metricsMetadataList 
+          if(!metricsMetadataList$displayName %in% names(dragenReportsList[[view_name]])){
+            dragenReportsList[[view_name]][[metricsMetadataList$displayName]] = metricsMetadataList 
+          } else{
+            newList = modifyList(dragenReportsList[[view_name]][[metricsMetadataList$displayName]],metricsMetadataList)
+            dragenReportsList[[view_name]][[metricsMetadataList$displayName]]  = newList
+          }
         } else{
           rlog::log_error(paste("Issue adding metadata for",view_name))
           rlog::log_error(print(metricsMetadataList))
           if(length(metricsMetadataList) > 0){
-            dragenReportsList[[view_name]][[metricsMetadataList$name]] = metricsMetadataList 
+            if(! metricsMetadataList$name %in% names(dragenReportsList[[view_name]])){
+              dragenReportsList[[view_name]][[metricsMetadataList$name]] = metricsMetadataList 
+            } else{
+              newList = modifyList(dragenReportsList[[view_name]][[metricsMetadataList$name]],metricsMetadataList)
+              dragenReportsList[[view_name]][[metricsMetadataList$name]]  = newList
+            }
           }
         }
     
@@ -685,4 +735,23 @@ output_dir = args$output_dir
   output_file = paste(output_dir,gsub(".json$",".dragen_reports.json",basename(input_json)),sep="/")
   rlog::log_info(paste("Writing out full DRAGEN report annotation to",output_file))
   jsonlite::write_json(dragenReportsList,path=output_file,auto_unbox=T,pretty=T)
+  ###### SECOND PASS
+  rlog::log_info(paste("Second pass on DRAGEN report annotation ",output_file))
+  generatedDragenReportsList = jsonlite::read_json(output_file)
+  fields_to_update = second_pass_flagger(generatedDragenReportsList)
+  ### update fields as a second pass if needed
+  if(length(fields_to_update) > 0){
+    dragenReportsList1 = map_source_data(base_dir,generatedDragenReportsList,sampleSourcesList,fields_to_update)
+    dragenReportsListFinal = dragenReportsList1
+    output_file2 = paste(output_dir,gsub(".json$",".dragen_reports.v2.json",basename(input_json)),sep="/")
+    rlog::log_info(paste("Rewrite out full DRAGEN report annotation to",output_file2))
+    jsonlite::write_json(dragenReportsListFinal,path=output_file2,auto_unbox=T,pretty=T)
+  } else{
+    output_file2 = paste(output_dir,gsub(".json$",".dragen_reports.v2.json",basename(input_json)),sep="/")
+    rlog::log_info(paste("No need to rewrite out full DRAGEN report annotation for",output_file))
+    rlog::log_info(paste("RUNNING:","cp",output_file,output_file2))
+    system(paste("cp",output_file,output_file2))
+  }
+  
+
   
