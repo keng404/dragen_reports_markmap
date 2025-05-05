@@ -56,6 +56,7 @@ metric_deep_map <- function(manifest_base_dir,key_lookup,metric_of_interest){
   } else{
     full_path = paste(manifest_base_dir,"sections",key_lookup,sep="/")
   }
+  rlog::log_info(paste("updating metrics path [",key_lookup, "] to",full_path))
   if(grepl(".json$",basename(full_path))){
     y = jsonlite::read_json(full_path)
     metrics_list = y$metrics
@@ -78,6 +79,7 @@ sources_deep_map  <- function(manifest_base_dir,key_lookup,metric_of_interest,so
   } else{
     full_path = paste(manifest_base_dir,"sections",key_lookup,sep="/")
   }
+  rlog::log_info(paste("updating sources path [",key_lookup, "] to",full_path))
   if(grepl(".json$",basename(full_path))){
     y = jsonlite::read_json(full_path)
     metrics_list = y$metrics
@@ -229,9 +231,11 @@ output_dir = args$output_dir
     if("type" %in% names(items_of_interest[[i]])){
       if(grepl("view",items_of_interest[[i]]$type)){
         config_type = "views"
-      } else if(grepl("metric",z$type)){
+      } else if(grepl("metric",items_of_interest$type)){
         config_type = "metric"
-      }  else{
+      }  else if(grepl("plot",items_of_interest$type)){
+        config_type = "sections"
+      } else{
         config_type = "sections"
       }
     }
@@ -263,6 +267,7 @@ output_dir = args$output_dir
     }
     for(j in 1:length(sections)){
       z = sections[[j]]
+      z_name = z$displayName
       config_type = ""
       if("type" %in% names(z)){
         if(grepl("view",z$type)){
@@ -477,8 +482,8 @@ output_dir = args$output_dir
           } else{
             rlog::log_info(paste("Cannot parse through full_path2",full_path2,"of","metrics"))
           }
-          rlog::log_info("other_fields_of_interest:",paste(names(z1)))
-          fields_of_interest = find_other_fields_of_interest(names(unlist(z1)))
+          rlog::log_info(paste("other_fields_of_interest:",names(z1)))
+          fields_of_interest = find_other_fields_of_interest(names(z1))
         } else{
           field_of_interest = "metrics"
         }
@@ -570,9 +575,19 @@ output_dir = args$output_dir
               rlog::log_info(paste("Could not initially map ", secondary_key, "[",metric_of_interest$path,"]", "to a DRAGEN file via path field"))
               ##break
               deep_metric_map = metric_deep_map(base_dir,metric_of_interest$path,secondary_key)
+              #####rlog::log_info(paste(print(deep_metric_map)))
+              rlog::log_info(paste("Converting", "[",metric_of_interest$path,"]","to",deep_metric_map$path))
               sampleSourcesList1 = sources_deep_map(base_dir,metric_of_interest$path,secondary_key,sampleSourcesList)
               sampleSourcesList = sampleSourcesList1
-              metric_of_interest$path = deep_metric_map$path
+              #if(!is.null(deep_metric_map$path)){
+                metric_of_interest$path = deep_metric_map$path
+                if(!"path" %in% names(deep_metric_map)){
+                  rlog::log_info(paste("Appending data to",secondary_key))
+                  metric_of_interest = append(metric_of_interest,deep_metric_map)
+                  rlog::log_info(print(metric_of_interest))
+                  metricsMetadataList[[secondary_key]] = metric_of_interest
+                }
+              #} 
               if(!is.null(metric_of_interest$path)){
                 if(!metric_of_interest$path %in% names(sampleSourcesList)){
                   rlog::log_error(paste("Could not  map ", secondary_key, "[",metric_of_interest$path,"]", "to a DRAGEN file via path field"))
@@ -602,6 +617,7 @@ output_dir = args$output_dir
          # } else{
             ### some metrics are a combination of multiple metrics
             rlog::log_info(paste("parsing [",metric_of_interest$type,"]",metric_of_interest$display))
+            metric_name = metric_of_interest$name
             metric_collection = metric_of_interest$metrics
             #if(!is.null(metric_collection)){
             #  rlog::log_info(print(metric_collection))
@@ -614,9 +630,15 @@ output_dir = args$output_dir
                     rlog::log_info(paste("Could not map initially [",metric_of_interest$type,"]", metric_collection[[mult_metric_idx]]$metric,"[",metric_collection[[mult_metric_idx]]$path,"]", "to a DRAGEN file via the field path"))
                    ## break
                     deep_metric_map = metric_deep_map(base_dir,metric_collection[[mult_metric_idx]]$path,metric_collection[[mult_metric_idx]]$metric)
+                    rlog::log_info(paste("Converting", "[",metric_collection[[mult_metric_idx]]$path,"]","to",deep_metric_map$path))
                     sampleSourcesList1 = sources_deep_map(base_dir,metric_collection[[mult_metric_idx]]$path,metric_collection[[mult_metric_idx]]$metric,sampleSourcesList)
                     sampleSourcesList = sampleSourcesList1
-                    metric_collection[[mult_metric_idx]]$path= deep_metric_map$path
+                    #if(!is.null(deep_metric_map$path)){
+                      metric_collection[[mult_metric_idx]]$path= deep_metric_map$path
+                      if(!"path" %in% names(deep_metric_path)){
+                        metric_collection[[mult_metric_idx]] = append(metric_collection[[mult_metric_idx]],deep_metric_map)
+                      }
+                    #}
                     if(!metric_collection[[mult_metric_idx]]$path %in% names(sampleSourcesList)){
                       rlog::log_info(paste("Could not map [",metric_of_interest$type,"]", metric_collection[[mult_metric_idx]]$metric,"[",metric_collection[[mult_metric_idx]]$path,"]", "to a DRAGEN file via the field path"))
                     }
@@ -646,9 +668,15 @@ output_dir = args$output_dir
                       rlog::log_info(paste("Could not initially map  sub-metric [",metric_of_interest$type,"]", sub_metric_collection[[mult_sub_metric_idx]]$metric,"[",sub_metric_collection[[mult_sub_metric_idx]]$path,"]", "to a DRAGEN file via the field path"))
                       ## break
                       deep_metric_map = metric_deep_map(base_dir,sub_metric_collection[[mult_sub_metric_idx]]$path,sub_metric_collection[[mult_sub_metric_idx]]$metric)
+                      rlog::log_info(paste("Converting","[",sub_metric_collection[[mult_sub_metric_idx]]$path,"]","to",deep_metric_map$path))
                       sampleSourcesList1 = sources_deep_map(base_dir,sub_metric_collection[[mult_sub_metric_idx]]$path,sub_metric_collection[[mult_sub_metric_idx]]$metric,sampleSourcesList)
                       sampleSourcesList = sampleSourcesList1
-                      metric_collection[[mult_metric_idx]]$path = deep_metric_map$path
+                      #if(!is.null(deep_metric_map$path)){
+                        metric_collection[[mult_metric_idx]]$path = deep_metric_map$path
+                        if(!"path" %in% names(deep_metric_map)){
+                          metric_collection[[mult_metric_idx]] = append(metric_collection[[mult_metric_idx]],deep_metric_map)
+                        }
+                     # }
                       if(!sub_metric_collection[[mult_sub_metric_idx]]$path %in% names(sampleSourcesList)){
                         rlog::log_info(paste("Could not  map  sub-metric [",metric_of_interest$type,"]", sub_metric_collection[[mult_sub_metric_idx]]$metric,"[",sub_metric_collection[[mult_sub_metric_idx]]$path,"]", "to a DRAGEN file via the field path"))
                       }
@@ -676,7 +704,7 @@ output_dir = args$output_dir
           }
     ###############
         rlog::log_info(paste("keys_to_choose_from:",names(parsed_object_to_update)))
-        rlog::log_info(paste("section_name:",section_name))
+        rlog::log_info(paste("z_name:",z_name,"view_name:",view_name,"section_name:",section_name,"metric_name:",metric_name))
       #############
         if(sum(c("name","displayName") %in% names(parsed_object_to_update)) < 1){
           rlog::log_info(paste("Pulling info from parent object"))

@@ -3,7 +3,7 @@ library(rlog)
 library(jsonlite)
 options(stringsAsFactors=FALSE)
 suppressPackageStartupMessages(library("argparse"))
-
+source("json_finalize_names.R")
 #############
 # create parser object
 parser <- ArgumentParser()
@@ -17,7 +17,8 @@ input_json = args$input_json
 output_dir = args$output_dir
 ### set output directory to HOME if not configured
 if(is.null(output_dir)){
-  output_dir = Sys.getenv("HOME")
+  ##output_dir = Sys.getenv("HOME")
+  output_dir = dirname(input_json)
 }
 #input_json = "/Users/keng/dragen_reports-4.5.0_a.140_layout_mapping/spatial.dragen_reports.json"
 rlog::log_info(paste("Reading in",input_json))
@@ -28,6 +29,31 @@ if(length(names(json_data))<0){
   rlog::log_error("stopping")
   stop()
 }
+
+#### perform renaming
+all_keys = names(unlist(json_data))
+keys_of_interest = get_keys_of_interest(all_keys)
+if(length(names(keys_of_interest)) > 0){
+  rlog::log_info(paste("Found some keys to rename:[",paste(keys_of_interest,sep=", "),"]"))
+}
+related_keys = get_related_keys(all_keys)
+rename_candidates = list()
+if(length(names(related_keys)) > 0) {
+  rename_candidates = get_rename_candidates(related_keys)
+}
+if(length(names(rename_candidates)) > 0){
+  json_data1 = perform_rename(json_data,rename_candidates)
+  ###rlog::log_info(paste("RENAMED FIELDS",paste(names(unlist(json_data1)),collapse=", ")))
+  output_file = paste(output_dir,gsub(".json$",".v3.json",basename(input_json)),sep="/")
+  rlog::log_info(paste("Rewrite out full DRAGEN report annotation to",output_file))
+  jsonlite::write_json(json_data1,path=output_file,auto_unbox=T,pretty=T)
+  json_data = jsonlite::read_json(output_file)
+  all_keys = names(unlist(json_data))
+  rlog::log_info(paste("RENAMED FIELDS",paste(all_keys,collapse=", ")))
+} else{
+  rlog::log_info(paste("No renaming performed"))
+}
+#######################
 
 fields_to_bold = c("path","source")
 fields_ignore =  c("name","displayName")
