@@ -11,10 +11,16 @@ parser$add_argument("-i","--input-json","--input_json", default=NULL, required =
                     help = "input JSON file --- DRAGEN reports manifest file")
 parser$add_argument("-o","--output-dir","--output_dir", default=NULL, required = FALSE,
                     help = "output directory path where markdown will be written to")
+parser$add_argument("-f","--field-len-flag","--field_len_flag", default=3, required = FALSE,
+                    help = "number of levels to try additional formatting")
+parser$add_argument("-t","--try-more-formatting","--try_more_formatting", action = "store_true",
+                    help = "flag to try more formatting")
 args <- parser$parse_args()
 #############################
 input_json = args$input_json
 output_dir = args$output_dir
+field_len_flag = args$field_len_flag
+try_more_formatting = args$try_more_formatting
 ### set output directory to HOME if not configured
 if(is.null(output_dir)){
   ##output_dir = Sys.getenv("HOME")
@@ -30,7 +36,17 @@ if(length(names(json_data))<0){
   stop()
 }
 
-#### perform renaming
+#########
+add_additional_formatting <- function(line_of_interest,num_tabs){
+  num_tabs_v2 = num_tabs + 1
+  line_of_interest1 = line_of_interest
+  final_line = paste(paste(rep("\t",num_tabs_v2),sep=""),line_of_interest1)
+  return(final_line)
+}
+###########
+
+
+#### perform renaming using functions from json_finalize_names.R
 all_keys = names(unlist(json_data))
 keys_of_interest = get_keys_of_interest(all_keys)
 if(length(names(keys_of_interest)) > 0){
@@ -128,14 +144,28 @@ for(subject_idx in 1:length(names(json_data))){
           bold_or_not2 = apply(t(flattend_sub_topic_fields_to_add),2,function(x) grepl("source_data|path|source",x))
           bold_or_not = bold_or_not1 | bold_or_not2
           #########
+          # field length to propose additional formatting
+          field_len_flag = args$field_len_flag
           for(j in 1:length(flattend_sub_topic_fields_to_add)){
             my_field = flattend_sub_topic_fields_to_add[j]
+            ########
+            ##########
             if(flattend_sub_topic[[my_field]] != ""){
               add_line = paste(paste(rep("\t",num_tabs),collapse=""),"-",paste(my_field,":",flattend_sub_topic[[my_field]],sep=" "))
               ### add bold prefix and suffix to line if it needs to be bolded
               if(bold_or_not[j]){
                 add_line = paste(paste(rep("\t",num_tabs),collapse=""),"-",paste("**",my_field,":",flattend_sub_topic[[my_field]],"**",sep=""))
               }
+              field_len = length(strsplit(my_field,"\\.")[[1]])
+              ########################
+              if(try_more_formatting){
+                if(field_len > field_len_flag){
+                  rlog::log_info(paste("field:",my_field,field_len))
+                  add_line1 = add_additional_formatting(add_line,num_tabs)
+                  add_line = add_line1
+                }
+              }
+              #######################
               rlog::log_info(paste("adding sub-topic-field line v2 [",add_line,"]"))
               markdown_lines = c(markdown_lines,add_line)
             }
@@ -144,6 +174,7 @@ for(subject_idx in 1:length(names(json_data))){
       }
     }
   }
+  markdown_lines = unique(markdown_lines)
   markdown_lines = c(markdown_lines,"\n")
 }
 ############# write output
