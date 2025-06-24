@@ -1,5 +1,9 @@
 # dragen_reports_markmap
-Create concept mapping of metrics within DRAGEN HTML report to initial data source file
+Create concept mapping of metrics within DRAGEN HTML report to initial data source file.
+
+This is an unofficial tool to help visualize how (i.e. what files and how fields within the HTML report are computed) the HTML report is formed.
+
+[DRAGEN reports](https://help.dragen.illumina.com/product-guides/dragen-v4.4/dragen-reports) can be bundled as a part of an Illumina BaseSpace or Illumina Connected Analytics pipeline.
 
 
 # The Flow
