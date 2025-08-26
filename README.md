@@ -5,6 +5,8 @@ This is an unofficial tool to help visualize how (i.e. what files and how fields
 
 [DRAGEN reports](https://help.dragen.illumina.com/product-guides/dragen-v4.4/dragen-reports) can be bundled as a part of an Illumina BaseSpace or Illumina Connected Analytics pipeline.
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/keng404/dragen_reports_markmap)
+
 
 # The Flow
 
